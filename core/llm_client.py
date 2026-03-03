@@ -1,4 +1,4 @@
-import os
+""" import os
 import requests
 
 class LLMClient:
@@ -13,4 +13,10 @@ class LLMClient:
             "api-key": self.api_key
         }
         r = requests.post(self.endpoint, json=payload, headers=headers, verify=True)
-        return r.json()
+        return r.json() """
+
+
+class LLMClient:
+    def ask(self, prompt):
+        return "LLM Explanation (mock): " + prompt[:200]
+
