@@ -1,46 +1,40 @@
-from dotenv import load_dotenv
-load_dotenv()
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 
-import streamlit as st
-from core.llm_client import LLMClient
-from core.rag_engine import RAGEngine
-from core.predictor import check_patient_eligibility, generate_maintenance_schedule
-from core.explainer import explain_result
+from knowledge.knowledge_store import KnowledgeStore
+from rag.retriever import Retriever
+from rag.prompt_builder import PromptBuilder
+from rag.rag_pipeline import RAGPipeline
+from llm.llm_client import LLMClient
 
-st.set_page_config(page_title="AI-Friday", layout="wide")
-st.title("AI-Friday Enterprise AI System")
 
-mode = st.sidebar.selectbox(
-    "Select Use Case",
-    ["Clinical Trial Eligibility", "Maintenance Scheduler"]
-)
+app = FastAPI()
+templates = Jinja2Templates(directory="templates")
 
-llm = LLMClient()
-rag = RAGEngine()
 
-if mode == "Clinical Trial Eligibility":
-    st.subheader("Patient Details")
-    age = st.number_input("Age", 0, 100, 45)
-    condition = st.text_input("Condition", "diabetes")
-    medication = st.text_input("Medication", "metformin")
+# Initialize RAG pipeline
+knowledge_store = KnowledgeStore()
+retriever = Retriever(knowledge_store)
+prompt_builder = PromptBuilder()
+llm_client = LLMClient()
 
-    if st.button("Check Eligibility"):
-        result = check_patient_eligibility(age, condition, medication, rag)
-        explanation = explain_result(result, llm)
-        st.write("### Result")
-        st.json(result)
-        st.write("### Explanation")
-        st.write(explanation)
+rag = RAGPipeline(retriever, prompt_builder, llm_client)
 
-elif mode == "Maintenance Scheduler":
-    st.subheader("Equipment Details")
-    hours_used = st.number_input("Usage Hours Since Last Service", 0, 10000, 1200)
-    last_service_days = st.number_input("Days Since Last Service", 0, 1000, 180)
 
-    if st.button("Generate Schedule"):
-        result = generate_maintenance_schedule(hours_used, last_service_days, rag)
-        explanation = explain_result(result, llm)
-        st.write("### Schedule")
-        st.json(result)
-        st.write("### Explanation")
-        st.write(explanation)
+class ChatRequest(BaseModel):
+    message: str
+
+
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
+
+
+@app.post("/chat")
+async def chat(req: ChatRequest):
+
+    response = rag.run(req.message)
+
+    return {"reply": response}
